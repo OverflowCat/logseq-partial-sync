@@ -55,52 +55,19 @@ async function download(page) {
     if (page === undefined) {
         page = logseq.api.get_current_page().name
     }
-    const remoteBlocksTree = await kv.get(page)
-    const currentBlocksTree = logseq.api.get_page_blocks_tree(page)
-
-    return applyDiff(page, currentBlocksTree, remoteBlocksTree)
+    const remoteBlocksTree = JSON.parse(await kv.get(page))
+    clearPage(page)
+    appendBlocksTree(page, remoteBlocksTree)
 }
 
 function isSameBlock(block1, block2) {
     return block1.content === block2.content
 }
 
-function accumulateDiff(diff, block1, block2) {
-    if (isSameBlock(block1, block2)) {
-        diff.u++
-    } else {
-        diff.c++
-    }
-    return diff
-}
-
-function applyDiff(parent, later, older) {
-    let count = { "c": 0, "d": 0, "u": 0 }
-    let olderUuids = new Set(getUuids(older))
-    let olderContents = new Map(getContents(older))
-    for (const laterBlock of later) {
-        if (olderUuids.delete(laterBlock.uuid)) {
-            const olderBlock = olderContents.filter(([content, uuid]) => uuid === laterBlock.uuid)[0]
-            olderContents.delete(olderBlock.content)
-            if (laterBlock.content !== olderBlock.content) {
-                logseq.api.update_block(laterBlock.uuid, laterBlock.content)
-                count.u++
-            }
-            count = accumulateDiff(count,
-                applyDiff(laterBlock.uuid, laterBlock.children, olderBlock.children))
-        } else if (olderContents.delete(laterBlock.content)) {
-            count = accumulateDiff(count,
-                applyDiff(laterBlock.uuid, laterBlock.children, olderBlock.children))
-        } else {
-            logseq.api.insert_block(parent, laterBlock.content)
-            count.c++
-        }
-    }
-    for (const uuid of olderUuids) {
-        logseq.api.remove_block(uuid)
-        count.d++
-    }
-    return count
+function clearPage(page) {
+    const blocksTree = logseq.api.get_page_blocks_tree(page)
+    const uuids = getUuids(blocksTree)
+    uuids.forEach(logseq.api.remove_block)
 }
 
 function getUuids(blocksTree) {
@@ -108,31 +75,26 @@ function getUuids(blocksTree) {
     const uuids = []
     for (const block of blocksTree) {
         uuids.push(block.uuid)
-        // uuids.push(...getUuids(block.children))
+        if (block.children) {
+            uuids.push(...getUuids(block.children))
+        }
     }
     return uuids
 }
 
-function getContents(blocksTree) {
-    if (!blocksTree) return []
-    const contents = []
+function appendBlocksTree(parent, blocksTree) {
+    if (!blocksTree) return
     for (const block of blocksTree) {
-        contents.push([block.content, block.uuid])
-        // contents.push(...getContents(block.children))
+        try {
+            logseq.api.insert_block(parent, block.content, {
+                customUUID: block.uuid
+            })
+        } catch (e) {
+            console.log(e) // custom uuid already exists
+            logseq.api.insert_block(block.uuid, block.content)
+        }
+        appendBlocksTree(block, block.children)
     }
-    return contents
-}
-
-const TEST_PAGE_INFO = {
-    createdAt: 1685378026667,
-    file: { id: 13888 },
-    format: "markdown",
-    id: 13883,
-    "journal?": false,
-    name: "test",
-    originalName: "test",
-    updatedAt: 1685378100310,
-    uuid: "6474d3ea-79ef-44c1-8d78-c0f5d69f4779"
 }
 
 async function uploadCurrentPage() {
@@ -154,8 +116,8 @@ async function downloadCurrentPage() {
         en: "Are you sure you want to overwrite the local file with the remote file?"
     }
     if (window.confirm(i18n["zh"])) {
-        const count = await download()
-        alert(`下载成功, 更新了${count.c}个块, 删除了${count.d}个块, 更新了${count.u}个块`)
+        await download()
+        alert(`下载成功`)
     }
 }
 
@@ -181,3 +143,11 @@ function mountUI() {
     const firstChild = targetDiv.firstElementChild;
     targetDiv.insertBefore(divContainer, firstChild);
 }
+
+function main() {
+    mountUI();
+    console.info("Custom.js loaded")
+}
+
+console.log("Running custom.js")
+setTimeout(main, 2000);
