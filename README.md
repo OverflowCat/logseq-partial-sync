@@ -26,4 +26,8 @@ Copy `Endpoint` and `Bearer`.
 
 Copy [custom.js](./custom.js) in this project, and replace the first two lines with your own `Endpoint` and `Bearer`.
 
-Manually put the `custom.js` to`GRAPH_PATH/logseq/custom.js` of all the copies of your graph. Then you can sync a page accross your devices. 
+Manually put the `custom.js` to`GRAPH_PATH/logseq/custom.js` of all the copies of your graph. Then you can sync a page accross your devices.
+
+## License
+
+MIT.
