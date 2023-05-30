@@ -49,19 +49,40 @@ class VercelKV {
 
 const kv = new VercelKV(ENDPOINT, BEARER);
 
+/**
+ * Returns the name of the current page.
+ *
+ * @return {string} The name of the current page.
+ * @throws {Error} If the current page is a block.
+ */
+function getCurrentPage() {
+    const currentEntity = logseq.api.get_current_page()
+    // if has no name
+    if (!currentEntity.name) {
+        alert("当前页面是一个 block！请选择一个 page。")
+        throw new Error("Current page is a block")
+    }
+    return currentEntity.name
+}
+
+/**
+ * Asynchronously uploads the given page's block tree to a key-value store.
+ *
+ * @param {string} page - The page name to upload.
+ * @return {Promise} A promise that resolves when the upload is complete.
+ */
 async function upload(page) {
-    // page can be undefined, in which case it will upload the current page
-    if (page === undefined)
-        page = logseq.api.get_current_page().name
     const blocksTree = logseq.api.get_page_blocks_tree(page)
     await kv.set(page, blocksTree)
 }
 
+/**
+ * Downloads a page and appends its remote blocks tree.
+ *
+ * @param {string} page - The page to download.
+ * @return {Promise<void>} Promise that resolves when the download and append are complete.
+ */
 async function download(page) {
-    // page can be undefined, in which case it will download the current page
-    if (page === undefined) {
-        page = logseq.api.get_current_page().name
-    }
     console.info(`Downloading ${page}`)
     const remoteBlocksTree = JSON.parse(await kv.get(page))
     console.log(remoteBlocksTree)
@@ -92,7 +113,14 @@ function getUuids(blocksTree) {
     return uuids
 }
 
+/**
+ * Appends a blocks tree to a parent block or page using the Logseq API.
+ *
+ * @param {string} parent - A string representing either the name of a page or the uuid of a block.
+ * @param {array} blocksTree - An array of blocks to append to the parent.
+ */
 function appendBlocksTree(parent, blocksTree) {
+    // parent is either a page name or a block uuid, both string
     if (!blocksTree) return
     for (const block of blocksTree) {
         try {
@@ -108,25 +136,27 @@ function appendBlocksTree(parent, blocksTree) {
 }
 
 async function uploadCurrentPage() {
+    const page = getCurrentPage()
     // ask user to confirm
     const i18n = {
-        zh: "你确认要用本地的文件覆盖远程的文件吗？",
+        zh: `页面：${page}\n你确认要用本地的文件覆盖远程的文件吗？`,
         en: "Are you sure you want to overwrite the remote file with the local file?"
     }
     if (window.confirm(i18n["zh"])) {
-        await upload()
+        await upload(page)
         alert("上传成功")
     }
 }
 
 async function downloadCurrentPage() {
+    const page = getCurrentPage()
     // ask user to confirm
     const i18n = {
-        zh: "你确认要用远程的文件覆盖本地的文件吗？",
+        zh: `页面：${page}\n你确认要用远程的文件覆盖本地的文件吗？`,
         en: "Are you sure you want to overwrite the local file with the remote file?"
     }
     if (window.confirm(i18n["zh"])) {
-        await download()
+        await download(page)
         alert(`下载成功`)
     }
 }
@@ -135,16 +165,23 @@ function mountUI() {
     // Create the buttons
     const uploadButton = document.createElement("button");
     uploadButton.innerHTML = "&#8593; 上传"; // Up arrow
+    uploadButton.id = "partial-upload-btn";
+    uploadButton.style.marginLeft = "10px";
+    uploadButton.style.marginRight = "10px";
     uploadButton.style.fontSize = "18px";
     uploadButton.onclick = uploadCurrentPage;
 
     const downloadButton = document.createElement("button");
     downloadButton.innerHTML = "&#8595; 下载"; // Down arrow
+    downloadButton.id = "partial-download-btn";
+    downloadButton.style.marginLeft = "10px";
+    downloadButton.style.marginRight = "10px";
     downloadButton.style.fontSize = "18px";
     downloadButton.onclick = downloadCurrentPage;
 
     // Create the div to contain the buttons
     const divContainer = document.createElement("div");
+    divContainer.className = "partial-sync-container";
     divContainer.appendChild(uploadButton);
     divContainer.appendChild(downloadButton);
 
