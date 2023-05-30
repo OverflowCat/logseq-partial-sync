@@ -1,3 +1,8 @@
+const ENDPOINT = "https://xxxxxxxxxxxxxxxxx.kv.vercel-storage.com/"
+
+const BEARER = "Bearer XxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXx"
+
+
 class VercelKV {
     // constructor
     constructor(endpoint, bearer) {
@@ -46,7 +51,9 @@ const kv = new VercelKV(ENDPOINT, BEARER);
 
 async function upload(page) {
     // page can be undefined, in which case it will upload the current page
-    const blocksTree = page ? logseq.api.get_page_blocks_tree(page) : logseq.api.get_current_page_blocks_tree()
+    if (page === undefined)
+        page = logseq.api.get_current_page().name
+    const blocksTree = logseq.api.get_page_blocks_tree(page)
     await kv.set(page, blocksTree)
 }
 
@@ -55,8 +62,11 @@ async function download(page) {
     if (page === undefined) {
         page = logseq.api.get_current_page().name
     }
+    console.info(`Downloading ${page}`)
     const remoteBlocksTree = JSON.parse(await kv.get(page))
+    console.log(remoteBlocksTree)
     clearPage(page)
+    console.info(`Cleared ${page}`)
     appendBlocksTree(page, remoteBlocksTree)
 }
 
@@ -91,9 +101,9 @@ function appendBlocksTree(parent, blocksTree) {
             })
         } catch (e) {
             console.log(e) // custom uuid already exists
-            logseq.api.insert_block(block.uuid, block.content)
+            logseq.api.insert_block(parent, block.content)
         }
-        appendBlocksTree(block, block.children)
+        appendBlocksTree(block.uuid, block.children)
     }
 }
 
@@ -124,12 +134,12 @@ async function downloadCurrentPage() {
 function mountUI() {
     // Create the buttons
     const uploadButton = document.createElement("button");
-    uploadButton.innerHTML = "&#8593;"; // Up arrow
+    uploadButton.innerHTML = "&#8593; 上传"; // Up arrow
     uploadButton.style.fontSize = "18px";
     uploadButton.onclick = uploadCurrentPage;
 
     const downloadButton = document.createElement("button");
-    downloadButton.innerHTML = "&#8595;"; // Down arrow
+    downloadButton.innerHTML = "&#8595; 下载"; // Down arrow
     downloadButton.style.fontSize = "18px";
     downloadButton.onclick = downloadCurrentPage;
 
